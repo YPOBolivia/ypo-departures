@@ -79,7 +79,7 @@ def prepare_email(event_id: int, stage: str, request: Request) -> bool:
     subject, html, text = emails.render(ev, stage, base_url(request))
     existing = db.one("SELECT id FROM email_queue WHERE event_id=%s AND stage=%s AND status='pending'", (event_id, stage))
     if existing:
-        db.run("UPDATE email_queue SET recipients=%s, subject=%s, html=%s, text=%s, error=NULL, created_at=now() WHERE id=%s",
+        db.run("UPDATE email_queue SET recipients=%s, subject=%s, html=%s, text=%s WHERE id=%s",
                (ev["mail_lists"], subject, html, text, existing["id"]))
     else:
         db.run("INSERT INTO email_queue (event_id, stage, recipients, subject, html, text) VALUES (%s,%s,%s,%s,%s,%s)",
@@ -311,6 +311,10 @@ async def upload_photo(request: Request, event_id: int, photo: UploadFile = File
 def outbox(request: Request):
     if (r := need(request, admin=True)):
         return r
+    # Rebuild every waiting email from the flight's current details and the current design,
+    # so what you preview is always exactly what will be sent.
+    for p in db.all("SELECT event_id, stage FROM email_queue WHERE status='pending'"):
+        prepare_email(p["event_id"], p["stage"], request)
     items = db.all("""SELECT q.*, e.code FROM email_queue q JOIN events e ON e.id=q.event_id
                       WHERE q.status='pending' ORDER BY q.created_at""")
     return views.outbox_page(items, pop_flash(request))

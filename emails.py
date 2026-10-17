@@ -100,8 +100,7 @@ def render(ev_raw: dict, stage: str, base_url: str):
 <span style="font-family:'Courier New',monospace;font-size:12px;letter-spacing:3px;color:#D6B26E;padding-left:8px">DEPARTURES FY26-27</span></td>
 <td align="right" style="font-family:'Courier New',monospace;font-size:13px;color:#B9C4D6">{e(ev["code"])}</td></tr></table>
 <div style="padding-top:24px;font-family:'Courier New',monospace;font-weight:bold;font-size:15px;letter-spacing:2px;color:{color}">● {e(c["kicker"])}</div>
-<div style="padding-top:10px;font-family:Georgia,serif;font-size:44px;line-height:1.08;font-weight:bold;color:#F3EEE3">{e(c["headline"])}</div>
-<div style="padding-top:8px;font-family:Georgia,serif;font-size:24px;color:#D6B26E">{e(name)}</div></td></tr>
+<div style="padding-top:12px;font-family:Georgia,serif;font-size:40px;line-height:1.12;font-weight:bold;color:#F3EEE3">{e(name)}</div></td></tr>
 <tr><td style="background:#FFFFFF;border-left:1px solid #D3CCBB;border-right:1px solid #D3CCBB">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:'Courier New',monospace"><tr>
 <td width="33%" style="padding:18px 22px;border-right:1px dashed #D3CCBB;vertical-align:top"><div style="font-size:12px;letter-spacing:2px;color:#6A7487">DATE</div><div style="font-weight:bold;font-size:18px;color:#041E42;padding-top:6px">{e(date)}</div></td>
