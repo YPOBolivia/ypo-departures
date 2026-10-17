@@ -11,6 +11,8 @@ a{color:var(--gold)} a:hover{color:var(--ink)}
 @media(min-width:700px){.wrap{padding:48px 32px 72px}}
 .mono{font-family:var(--mono)}
 .brand{display:flex;align-items:center;gap:12px}
+.brand .logo{display:block;height:46px;width:auto}
+@media(max-width:480px){.brand .logo{height:32px}}
 .brand .mark{background:var(--gold);color:#041E42;font-family:var(--serif);font-weight:700;font-size:20px;letter-spacing:1px;padding:6px 12px;border-radius:4px}
 .brand .name{font-family:var(--mono);font-size:13px;letter-spacing:3px;color:var(--gold)}
 .topbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
