@@ -285,46 +285,53 @@ POSTER_COPY = {
 
 
 def poster_page(ev_raw, role) -> str:
+    """Same look as the emails: navy header with the stage tag and the event name, then the ticket strip."""
     ev = enrich(ev_raw)
     st = ev["stage"]
     k = st["key"]
-    kicker, headline = POSTER_COPY.get(k, POSTER_COPY["scheduled"])
-    accent = "#D6B26E"
+    kicker = POSTER_COPY.get(k, POSTER_COPY["scheduled"])[0]
+    mono = "font-family:var(--mono)"
     if ev["captain_shown"]:
-        photo = (f'<img src="{e(ev["photo_url"])}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
-                 if ev["photo_url"] else
-                 f'<div style="display:flex;flex-direction:column;align-items:center;gap:14px;color:#8FA3C4">{PERSON_ICON.format(s=72)}</div>')
-        quote = (f'<blockquote style="margin:0;font-family:var(--serif);font-style:italic;font-size:32px;line-height:1.3;'
-                 f'border-top:1px solid #2C4A78;padding-top:26px">“{e(ev["quote"])}”</blockquote>') if ev.get("quote") else ""
-        champs = f'<div style="font-size:20px;color:#B9C4D6">{e(ev["crew_line"])}</div>' if ev["crew_line"] else ""
-        middle = f'''<div style="display:flex;gap:40px;flex-grow:1;min-height:0">
-<div style="width:420px;flex:none;border-radius:16px;background:#0B2C5C;border:2px solid {accent};display:flex;align-items:center;justify-content:center;overflow:hidden">{photo}</div>
-<div style="display:flex;flex-direction:column;justify-content:space-between;gap:26px;min-width:0">
-<div style="display:flex;flex-direction:column;gap:10px"><div class="mono" style="font-size:16px;letter-spacing:3px;color:{accent}">{ev["lead_kicker"]}</div>
-<div style="font-family:var(--serif);font-weight:600;font-size:50px;line-height:1.05">{e(ev["lead"])}</div>{champs}</div>{quote}</div></div>'''
+        photo = (f'<img src="{e(ev["photo_url"])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">'
+                 if ev["photo_url"] else PERSON_ICON.format(s=96))
+        quote = (f'<div style="font-family:var(--serif);font-style:italic;font-size:30px;line-height:1.35;color:#4A5568">“{e(ev["quote"])}”</div>'
+                 if ev.get("quote") else "")
+        champs = f'<div style="font-size:22px;color:#4A5568">{e(ev["crew_line"])}</div>' if ev["crew_line"] else ""
+        crew = f'''<div style="display:flex;gap:40px;align-items:center;background:#F7F3EA;border-radius:20px;padding:36px">
+<div style="width:220px;height:220px;flex:none;border-radius:110px;overflow:hidden;background:#0B2C5C;border:4px solid #D6B26E;display:flex;align-items:center;justify-content:center">{photo}</div>
+<div style="display:flex;flex-direction:column;gap:12px;min-width:0"><div style="{mono};font-size:17px;letter-spacing:3px;color:#6B5A2E">{"YOUR CHAMPIONS" if ev["lead_is_champions"] else "YOUR CAPTAIN"}</div>
+<div style="font-family:var(--serif);font-weight:700;font-size:48px;line-height:1.08;color:#041E42">{e(ev["lead"])}</div>{champs}{quote}</div></div>'''
+    elif k == "landed":
+        crew = (f'<div style="background:#F7F3EA;border-radius:20px;padding:36px;{mono};font-size:40px;color:#041E42">'
+                f'{e(score_label(ev) or "Baggage claim · feedback in progress")}</div>')
     else:
-        extra = (f'<div class="mono" style="font-size:40px;color:#9FB0C8">{e(score_label(ev) or "Baggage claim · feedback in progress")}</div>'
-                 if k == "landed" else "")
-        middle = f'<div style="flex-grow:1;display:flex;flex-direction:column;justify-content:center;gap:20px">{extra}<div style="font-size:26px;color:#B9C4D6;line-height:1.5;max-width:760px">For {e(ev.get("audience_label"))}.</div></div>'
+        crew = ""
     date_v = ev["date_label"] if (at_least(k, "dated") or ev["is_regional"]) else "Set by your captain"
-    next_stop = ""
+    cells = [("DATE", f'<span style="{mono};font-weight:600;font-size:28px;color:#041E42">{e(date_v)}</span>'),
+             ("DESTINATION", f'<span style="{mono};font-weight:600;font-size:28px;color:#041E42;text-transform:uppercase">{e(ev["city_label"])}</span>'),
+             ("GATE", '<span class="chips">' + "".join(
+                 f'<span class="chip" style="background:{c["color"]};font-size:18px">{e(c["label"])}</span>' for c in ev["chips_rich"]) + '</span>')]
     pos = track_position(k)
-    if k not in ("landed",) and pos + 1 < len(TRACK):
+    if k != "landed" and pos + 1 < len(TRACK):
         nxt = STAGE_BY_KEY[TRACK[pos + 1]]
-        next_stop = f'<div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:8px"><span class="mono" style="font-size:13px;letter-spacing:2px;color:#8FA3C4">NEXT STOP</span><span class="mono" style="font-weight:600;font-size:22px;color:{nxt["color"]}">{e(nxt["label"])}</span></div>'
-    chips = "".join(f'<span class="chip" style="background:{c["color"]};font-size:18px">{e(c["label"])}</span>' for c in ev["chips_rich"])
-    poster = f'''<div id="poster" style="width:1080px;height:1350px;box-sizing:border-box;background:#041E42;color:#F3EEE3;font-family:var(--sans);padding:64px;display:flex;flex-direction:column;gap:40px;overflow:hidden">
+        cells.append(("NEXT STOP", f'<span style="{mono};font-weight:600;font-size:24px;color:#041E42">{e(nxt["label"])}</span>'))
+    strip = "".join(
+        f'<div style="flex:1;padding:26px 30px;display:flex;flex-direction:column;gap:10px;min-width:0;'
+        f'{"border-right:2px dashed #D3CCBB" if n < len(cells) - 1 else ""}">'
+        f'<span style="{mono};font-size:15px;letter-spacing:3px;color:#6A7487">{lab}</span>{val}</div>'
+        for n, (lab, val) in enumerate(cells))
+    poster = f'''<div id="poster" style="width:1080px;height:1350px;box-sizing:border-box;background:#FFFFFF;color:#1B2A44;font-family:var(--sans);display:flex;flex-direction:column;overflow:hidden">
+<div style="background:#041E42;color:#F3EEE3;padding:64px 72px 72px;display:flex;flex-direction:column;gap:36px;flex-grow:1;justify-content:space-between">
 <div style="display:flex;justify-content:space-between;align-items:center"><img src="/static/logo-h-white.png" alt="YPO Bolivia Integrated" width="300" height="56">
-<div class="mono" style="display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600;letter-spacing:2px;color:{st["color"]}">{lamp(st)}{e(kicker)}</div></div>
-<div style="display:flex;flex-direction:column;gap:12px"><div class="mono" style="font-size:20px;letter-spacing:4px;color:#B9C4D6">FLIGHT {e(ev["code"])} · {e(ev["name"].upper())}</div>
-<h1 style="margin:0;font-family:var(--serif);font-weight:600;font-size:104px;line-height:.98;letter-spacing:-2px">{headline}</h1></div>
-{middle}
-<div style="border:1px dashed #3A5A88;border-radius:16px;display:flex">
-<div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:8px;border-right:1px dashed #3A5A88"><span class="mono" style="font-size:13px;letter-spacing:2px;color:#8FA3C4">GATE</span><span class="chips">{chips}</span></div>
-<div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:8px;border-right:1px dashed #3A5A88"><span class="mono" style="font-size:13px;letter-spacing:2px;color:#8FA3C4">DATE</span><span class="mono" style="font-weight:600;font-size:22px">{e(date_v)}</span></div>
-<div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:8px;{'border-right:1px dashed #3A5A88' if next_stop else ''}"><span class="mono" style="font-size:13px;letter-spacing:2px;color:#8FA3C4">DESTINATION</span><span class="mono" style="font-weight:600;font-size:22px">{e(ev["city_label"])}</span></div>
-{next_stop}</div>
-<div class="mono" style="display:flex;justify-content:space-between;font-size:16px;letter-spacing:3px;color:#8FA3C4"><span>ONLY IN YPO</span><span>DEPARTURES {SEASON}</span></div></div>'''
+<div style="{mono};text-align:right;line-height:1.7"><div style="font-size:17px;letter-spacing:3px;color:#D6B26E">DEPARTURES {SEASON}</div><div style="font-size:18px;letter-spacing:2px;color:#B9C4D6">{e(ev["code"])}</div></div></div>
+<div style="display:flex;flex-direction:column;gap:22px">
+<div style="{mono};font-weight:600;font-size:26px;letter-spacing:4px;color:{st["color"]}">● {e(kicker)}</div>
+<h1 style="margin:0;font-family:var(--serif);font-weight:700;font-size:88px;line-height:1.04;letter-spacing:-1px;color:#F3EEE3">{e(ev["name"])}</h1></div></div>
+<div style="display:flex;padding:0 42px;border-bottom:2px dashed #D3CCBB">{strip}</div>
+<div style="padding:44px 72px 56px;display:flex;flex-direction:column;gap:30px">
+<div style="font-size:19px;letter-spacing:2px;color:#6B5A2E;text-transform:uppercase">For: {e(ev.get("audience_label"))}</div>
+{crew}
+<div style="{mono};display:flex;justify-content:space-between;font-size:16px;letter-spacing:3px;color:#6B5A2E"><span>ONLY IN YPO</span><span>YPO BOLIVIA INTEGRATED</span></div></div></div>'''
     body = f'''<div class="wrap">{topbar(role)}
 <div class="actions"><a href="/flight/{e(ev["code"])}" style="font-size:14px">← Back to the flight</a>
 <button class="btn small" type="button" id="dl">Download poster (PNG)</button>
@@ -401,10 +408,68 @@ def admin_event_page(ev, flash="", error="", ei_events=None) -> str:
     if not new:
         cur = (f'<img class="avatar" src="/media/{e(ev["photo_token"])}" alt="Current photo">' if ev.get("photo_token")
                else f'<div class="avatar">{PERSON_ICON.format(s=40)}</div>')
+        orig = ev.get("photo_original_token") or ev.get("photo_token")
+        repos = (f'<button class="btn small ghost" type="button" id="repos" data-src="/media/{e(orig)}">Reposition current photo</button>'
+                 if orig else "")
         photo = f'''<section class="card"><h2 style="font-size:24px">Day Chair photo</h2>
-<div class="actions">{cur}<form method="post" action="/admin/event/{ev["id"]}/photo" enctype="multipart/form-data">
-<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required><button class="btn small" type="submit">Upload</button></form></div>
-<p class="help">JPG, PNG or WebP up to 3 MB. A square or vertical portrait works best. It appears on the board, the poster and the emails.</p></section>'''
+<div class="actions">{cur}<label class="btn small" style="cursor:pointer">Choose a new photo
+<input type="file" id="photoFile" accept="image/jpeg,image/png,image/webp" style="position:absolute;width:1px;height:1px;opacity:0"></label>{repos}</div>
+<div id="cropBox" hidden style="flex-direction:column;gap:14px">
+<div id="stage" style="position:relative;width:320px;height:320px;max-width:100%;overflow:hidden;border-radius:12px;background:#021430;touch-action:none;cursor:grab">
+<img id="cropImg" alt="Photo to position" draggable="false" style="position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none">
+<div aria-hidden="true" style="position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 400px rgba(2,20,48,.55);outline:2px solid #D6B26E;pointer-events:none"></div></div>
+<label style="max-width:320px">Zoom<input type="range" id="zoom" min="1" max="4" step="0.01" value="1" style="padding:0;accent-color:#D6B26E"></label>
+<p class="help" style="margin:0">Drag the photo to move it and use the zoom to get closer. The circle is what shows in the emails and on the flight page; the poster uses the whole square.</p>
+<div class="actions"><button class="btn small" type="button" id="savePhoto">Save photo</button>
+<button class="btn small ghost" type="button" id="cancelCrop">Cancel</button><span class="help" id="photoMsg" role="status"></span></div></div>
+<p class="help">JPG, PNG or WebP. It appears on the board, the poster and the emails.</p></section>
+<script>
+(function(){{
+  var box=document.getElementById('cropBox'),stage=document.getElementById('stage'),img=document.getElementById('cropImg');
+  var zoom=document.getElementById('zoom'),msg=document.getElementById('photoMsg');
+  var action='/admin/event/{ev["id"]}/photo',original=null,S=320,base=1,sc=1,x=0,y=0,drag=null;
+  function size(){{S=stage.clientWidth;stage.style.height=S+'px';}}
+  function clamp(){{var w=img.naturalWidth*sc,h=img.naturalHeight*sc;x=Math.min(0,Math.max(S-w,x));y=Math.min(0,Math.max(S-h,y));}}
+  function draw(){{clamp();img.style.transform='translate('+x+'px,'+y+'px) scale('+sc+')';}}
+  function setZoom(z){{var cx=(S/2-x)/sc,cy=(S/2-y)/sc;sc=base*z;x=S/2-cx*sc;y=S/2-cy*sc;draw();}}
+  function open(src){{
+    box.hidden=false;box.style.display='flex';msg.textContent='';size();
+    img.onload=function(){{base=Math.max(S/img.naturalWidth,S/img.naturalHeight);sc=base;zoom.value=1;
+      x=(S-img.naturalWidth*sc)/2;y=(S-img.naturalHeight*sc)/2;draw();}};
+    img.src=src;
+  }}
+  stage.addEventListener('pointerdown',function(e){{drag={{px:e.clientX,py:e.clientY,x:x,y:y}};stage.setPointerCapture(e.pointerId);stage.style.cursor='grabbing';}});
+  stage.addEventListener('pointermove',function(e){{if(!drag)return;x=drag.x+e.clientX-drag.px;y=drag.y+e.clientY-drag.py;draw();}});
+  function end(){{drag=null;stage.style.cursor='grab';}}
+  stage.addEventListener('pointerup',end);stage.addEventListener('pointercancel',end);
+  stage.addEventListener('wheel',function(e){{e.preventDefault();var z=Math.min(4,Math.max(1,parseFloat(zoom.value)-e.deltaY*0.002));zoom.value=z;setZoom(z);}},{{passive:false}});
+  zoom.addEventListener('input',function(){{setZoom(parseFloat(zoom.value));}});
+  function shrink(file,cb){{ // keep a lighter copy of the original so it can be repositioned later
+    var r=new FileReader();r.onload=function(){{var i=new Image();i.onload=function(){{
+      var k=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');
+      c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+      c.toBlob(function(b){{cb(b,URL.createObjectURL(b));}},'image/jpeg',0.9);}};i.src=r.result;}};r.readAsDataURL(file);
+  }}
+  document.getElementById('photoFile').addEventListener('change',function(ev){{
+    var f=ev.target.files[0];if(!f)return;shrink(f,function(blob,url){{original=blob;open(url);}});
+  }});
+  var rp=document.getElementById('repos');
+  if(rp)rp.addEventListener('click',function(){{original=null;open(rp.getAttribute('data-src'));}});
+  document.getElementById('cancelCrop').addEventListener('click',function(){{box.hidden=true;box.style.display='none';}});
+  document.getElementById('savePhoto').addEventListener('click',function(){{
+    msg.textContent='Saving…';
+    var c=document.createElement('canvas');c.width=800;c.height=800;var g=c.getContext('2d');
+    g.fillStyle='#041E42';g.fillRect(0,0,800,800);g.imageSmoothingQuality='high';
+    g.drawImage(img,-x/sc,-y/sc,S/sc,S/sc,0,0,800,800);
+    c.toBlob(function(b){{
+      var fd=new FormData();fd.append('photo',b,'photo.jpg');if(original)fd.append('original',original,'original.jpg');
+      fetch(action,{{method:'POST',body:fd,credentials:'same-origin'}}).then(function(r){{
+        if(r.ok){{location.reload();}}else{{msg.textContent='Could not save the photo. Try again.';}}
+      }}).catch(function(){{msg.textContent='Could not save the photo. Try again.';}});
+    }},'image/jpeg',0.9);
+  }});
+}})();
+</script>'''
     fl = f'<div class="flash" role="status">{e(flash)}</div>' if flash else ""
     er = f'<p class="err" role="alert">{e(error)}</p>' if error else ""
     body = f'''<div class="wrap">{topbar("admin")}<a href="/admin" style="font-size:14px">← Control tower</a>
@@ -420,6 +485,8 @@ def admin_event_page(ev, flash="", error="", ei_events=None) -> str:
 <label>End date<input type="date" name="end_date" value="{d(ev.get("end_date"))}"></label>
 <label>Destination (city)<input name="city" value="{e(ev.get("city"))}" placeholder="TBA"></label>
 <label>YPO Connect registration link<input type="url" name="connect_url" value="{e(ev.get("connect_url"))}" placeholder="https://"></label>
+<label>Feedback survey link<input type="url" name="survey_url" value="{e(ev.get("survey_url"))}" placeholder="https://">
+<span class="help">Goes in the thank-you email when the flight lands.</span></label>
 <label>Day Chair<input name="day_chair" value="{e(ev.get("day_chair"))}"></label>
 <label>Champions<input name="champions" value="{e(ev.get("champions"))}" placeholder="e.g. Ana Pérez and Luis Rojas"></label>
 <label class="wide">Day Chair quote<textarea name="quote" placeholder="Why I created this experience for our community, in one sentence.">{e(ev.get("quote"))}</textarea></label>
@@ -450,6 +517,7 @@ def outbox_page(items, flash="", sent=None) -> str:
 <div><div class="mono" style="color:{st["color"]};letter-spacing:1px;text-transform:uppercase">{e(st["label"])} · {e(it["code"])}</div>
 <div style="font-family:var(--serif);font-size:24px;font-weight:600;margin-top:4px">{e(it["subject"])}</div>
 <div class="help mono" style="margin-top:6px">To: {e(", ".join(it["recipients"]))} · Prepared {e(when)}</div></div></div>
+{'<p class="err" style="margin:0">This thank-you email has no survey link yet. Add the Feedback survey link in the flight and reopen the Outbox.</p>' if it["stage"] == "landed" and not it.get("survey_url") else ""}
 <iframe src="/admin/outbox/{it["id"]}/preview" title="Email preview" loading="lazy"></iframe>
 <div class="actions">
 <form method="post" action="/admin/outbox/{it["id"]}/approve" onsubmit="return confirm('Send this email to {e(", ".join(it["recipients"]))}?');"><button class="btn" type="submit">Approve &amp; send</button></form>

@@ -22,9 +22,12 @@ CREATE TABLE IF NOT EXISTS events (
   quote          text,
   photo_token    text,
   connect_url    text,
-  score          numeric(3,1),
+  score          numeric(4,2),
   score_n        int,
-  updated_at     timestamptz NOT NULL DEFAULT now()
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  ei_event_id    uuid,
+  survey_url     text,
+  photo_original_token text
 );
 
 CREATE TABLE IF NOT EXISTS photos (

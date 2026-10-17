@@ -19,7 +19,7 @@ STAGES = [
      "desc": "A new date, shared gracefully."},
     {"key": "in_flight",  "label": "In flight",          "color": "#FFFFFF", "mail": False,
      "desc": "Today is the day. Takes off at 07:30 Eastern."},
-    {"key": "landed",     "label": "Landed",             "color": "#9FB0C8", "mail": False,
+    {"key": "landed",     "label": "Landed",             "color": "#9FB0C8", "mail": True,
      "desc": "Lands the morning after. The /5 score follows the feedback."},
 ]
 STAGE_BY_KEY = {s["key"]: s for s in STAGES}

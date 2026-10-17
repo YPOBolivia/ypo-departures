@@ -124,7 +124,9 @@ def auto_advance(morning_task: bool = False):
     """Takeoff at 07:30 Eastern on the start date; landing at 07:30 Eastern the day after the end date."""
     took_off = _move("in_flight", "status NOT IN ('in_flight','landed')",
                      TAKEOFF_DUE_TODAY if morning_task else TAKEOFF_DUE)
-    _move("landed", "status = 'in_flight'", LANDING_DUE)
+    landed = _move("landed", "status = 'in_flight'", LANDING_DUE)
+    for r in landed:
+        prepare_email(r["event_id"], "landed", os.environ.get("BASE_URL", "https://ypo-departures.onrender.com"))
     # Emails still waiting for approval are no longer useful once the flight took off.
     if took_off:
         db.run("UPDATE email_queue SET status='discarded', decided_at=now(), error='Flight took off before approval' "
@@ -171,12 +173,13 @@ async def daily_task(request: Request):
     return {"ok": True, "reminders_sent": sent}
 
 
-def prepare_email(event_id: int, stage: str, request: Request) -> bool:
+def prepare_email(event_id: int, stage: str, request) -> bool:
     """Creates (or refreshes) the pending email for this flight and stage. Returns True if one is waiting."""
     ev = get_event(event_id)
     if not ev or stage not in MAIL_STAGES or ev["scope"] != "chapter" or not ev["mail_lists"]:
         return False
-    subject, html, text = emails.render(ev, stage, base_url(request))
+    base = request if isinstance(request, str) else base_url(request)
+    subject, html, text = emails.render(ev, stage, base)
     existing = db.one("SELECT id FROM email_queue WHERE event_id=%s AND stage=%s AND status='pending'", (event_id, stage))
     if existing:
         db.run("UPDATE email_queue SET recipients=%s, subject=%s, html=%s, text=%s WHERE id=%s",
@@ -318,11 +321,12 @@ def _form_values(form) -> dict:
         "score": float(score.replace(",", ".")) if score else None,
         "score_n": int(score_n) if score_n else None,
         "ei_event_id": ei,
+        "survey_url": blank_none(form.get("survey_url")),
     }
 
 
 COLS = ["name", "status", "status_note", "previous_date", "start_date", "end_date", "city", "connect_url",
-        "day_chair", "champions", "quote", "audience_label", "scope", "chips", "tags", "mail_lists", "score", "score_n", "ei_event_id"]
+        "day_chair", "champions", "quote", "audience_label", "scope", "chips", "tags", "mail_lists", "score", "score_n", "ei_event_id", "survey_url"]
 
 
 @app.post("/admin/event/new", response_class=HTMLResponse)
@@ -394,18 +398,26 @@ async def save_event(request: Request, event_id: int):
 
 
 @app.post("/admin/event/{event_id}/photo")
-async def upload_photo(request: Request, event_id: int, photo: UploadFile = File(...)):
+async def upload_photo(request: Request, event_id: int, photo: UploadFile = File(...),
+                       original: UploadFile | None = File(None)):
     if (r := need(request, admin=True)):
         return r
     data = await photo.read()
+    orig = await original.read() if original is not None else None
     if photo.content_type not in PHOTO_TYPES:
         flash(request, "Please upload a JPG, PNG or WebP image.")
-    elif len(data) > MAX_PHOTO:
-        flash(request, "That photo is over 3 MB. Please use a smaller one.")
+    elif len(data) > MAX_PHOTO or (orig and len(orig) > MAX_PHOTO * 2):
+        flash(request, "That photo is too large. Please use a smaller one.")
     else:
         token = secrets.token_urlsafe(18)
         db.run("INSERT INTO photos (token, mime, data) VALUES (%s,%s,%s)", (token, photo.content_type, data))
-        db.run("UPDATE events SET photo_token=%s, updated_at=now() WHERE id=%s", (token, event_id))
+        if orig:
+            otoken = secrets.token_urlsafe(18)
+            db.run("INSERT INTO photos (token, mime, data) VALUES (%s,%s,%s)", (otoken, "image/jpeg", orig))
+            db.run("UPDATE events SET photo_token=%s, photo_original_token=%s, updated_at=now() WHERE id=%s",
+                   (token, otoken, event_id))
+        else:
+            db.run("UPDATE events SET photo_token=%s, updated_at=now() WHERE id=%s", (token, event_id))
         for p in db.all("SELECT stage FROM email_queue WHERE event_id=%s AND status='pending'", (event_id,)):
             prepare_email(event_id, p["stage"], request)
         flash(request, "Photo updated.")
@@ -423,7 +435,7 @@ def outbox(request: Request):
     # so what you preview is always exactly what will be sent.
     for p in db.all("SELECT event_id, stage FROM email_queue WHERE status='pending'"):
         prepare_email(p["event_id"], p["stage"], request)
-    items = db.all("""SELECT q.*, e.code FROM email_queue q JOIN events e ON e.id=q.event_id
+    items = db.all("""SELECT q.*, e.code, e.survey_url FROM email_queue q JOIN events e ON e.id=q.event_id
                       WHERE q.status='pending' ORDER BY q.created_at""")
     sent = db.all("""SELECT q.id, q.stage, q.subject, q.recipients, q.decided_at, e.code FROM email_queue q
                      JOIN events e ON e.id=q.event_id WHERE q.status='sent' ORDER BY q.decided_at DESC LIMIT 15""")

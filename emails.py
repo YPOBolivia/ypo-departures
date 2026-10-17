@@ -32,6 +32,14 @@ COPY = {
         "body": ("Registration for <strong>{name}</strong> is closing soon{note}. "
                  "If you are joining us, now is the time to register on YPO Connect."),
     },
+    # Prepared when the flight lands (the morning after); waits for approval like the others.
+    "landed": {
+        "kicker": "LANDED · THANK YOU",
+        "subject": "Thank you for flying with us: {name}",
+        "headline": "Thank you for flying with us.",
+        "body": ("Thank you for being part of <strong>{name}</strong>. {thanks} "
+                 "Your feedback shapes the next experience our community creates, and it only takes a couple of minutes."),
+    },
     # Sent automatically on the morning of the event (07:30 Eastern), no approval needed.
     "in_flight": {
         "kicker": "IN FLIGHT · TODAY",
@@ -43,7 +51,7 @@ COPY = {
 }
 
 STATUS_COLOR = {"captain": "#D6B26E", "dated": "#82B4FF", "boarding": "#2FA866", "final_call": "#D98E1E",
-                "in_flight": "#FFFFFF"}
+                "in_flight": "#FFFFFF", "landed": "#9FB0C8"}
 
 
 def render(ev_raw: dict, stage: str, base_url: str):
@@ -75,9 +83,13 @@ def render(ev_raw: dict, stage: str, base_url: str):
     flight_url = f"{base_url.rstrip('/')}/flight/{ev['code']}"
     if stage in ("boarding", "final_call") and ev.get("connect_url"):
         cta_label, cta_url = "Register on YPO Connect", ev["connect_url"]
+    elif stage == "landed" and ev.get("survey_url"):
+        cta_label, cta_url = "Share your feedback", ev["survey_url"]
     else:
         cta_label, cta_url = "See this flight", flight_url
     color = STATUS_COLOR[stage]
+    footnote = {"landed": "The survey opens on YPO Connect.",
+                "in_flight": "See you there."}.get(stage, "Official registration always happens on YPO Connect.")
 
     captain_block = ""
     if has_captain:
@@ -124,7 +136,7 @@ def render(ev_raw: dict, stage: str, base_url: str):
 <tr><td style="padding:8px 40px 24px;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.6;color:#1B2A44">Dear community: {body_html}</td></tr>
 {captain_block}
 <tr><td style="padding:0 40px 16px" align="center"><a href="{e(cta_url)}" style="display:block;background:#D6B26E;color:#041E42;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:17px;text-decoration:none;padding:17px 20px;border-radius:10px;text-align:center">{e(cta_label)}</a></td></tr>
-<tr><td style="padding:0 40px 32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6A7487;text-align:center">Official registration always happens on YPO Connect.</td></tr>
+<tr><td style="padding:0 40px 32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6A7487;text-align:center">{footnote}</td></tr>
 </table></td></tr>
 <tr><td align="center" style="padding:24px 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#6A7487">
 <div style="font-family:'Courier New',monospace;letter-spacing:3px;color:#6B5A2E">ONLY IN YPO</div>
