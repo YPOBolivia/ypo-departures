@@ -126,7 +126,7 @@ def board_row(ev) -> str:
         cap = f'<div class="cap">Captain: {e(ev["day_chair"])}</div>'
     else:
         cap = '<div class="cap none">Seeking a captain</div>'
-    regional = '<span class="regional">REGIONAL · NO EMAILS</span>' if ev["is_regional"] else ""
+    regional = '<span class="regional">REGIONAL · GLOBAL YPO</span>' if ev["is_regional"] else ""
     return f'''<a class="row" href="/flight/{e(ev["code"])}" data-tags="{e(filter_tags(ev))}">
 <div class="c-code"><span class="flaps" aria-label="Flight {e(ev["code"])}">{flaps}</span></div>
 <div class="c-date{tba}">{e(ev["date_label"])}</div>
@@ -162,10 +162,10 @@ def board_page(events, role, updated_at) -> str:
 <div class="l" style="color:{s['color']}"><span class="lamp" aria-hidden="true" style="width:10px;height:10px;background:{s['color']}"></span>{e(s['label'])}</div>
 <div class="d">{e(s['desc'])}</div></div>''' for i, s in enumerate(STAGES))
     gates = f'''<div class="gates">
-<div class="card"><div class="chips"><span class="chip" style="background:#D6B26E">MEMBERS</span></div><div class="who">Members only</div><div class="addr">{LISTS["members"]}</div></div>
-<div class="card"><div class="chips"><span class="chip" style="background:#F3EEE3">ALL</span><span class="chip" style="background:#9EC1F0">MEN</span><span class="chip" style="background:#E9B9C1">WOMEN</span></div><div class="who">Members &amp; spouses (the email names the exact audience)</div><div class="addr">{LISTS["all"]}</div></div>
-<div class="card"><div class="chips"><span class="chip" style="background:#E9B9C1">SPOUSES</span></div><div class="who">Spouses only</div><div class="addr">{LISTS["spouses"]}</div></div>
-<div class="card"><div class="chips"><span class="chip" style="background:#74D3C9">FAMILIES</span><span class="chip" style="background:#74D3C9">YNG</span></div><div class="who">Families, YNG community &amp; Key Associates</div><div class="addr">{LISTS["all"]}<br>{LISTS["yng"]}</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#D6B26E">MEMBERS</span></div><div class="who">Members only</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#F3EEE3">ALL</span><span class="chip" style="background:#9EC1F0">MEN</span><span class="chip" style="background:#E9B9C1">WOMEN</span></div><div class="who">Members &amp; spouses, including men-only and women-only gatherings</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#E9B9C1">SPOUSES</span></div><div class="who">Spouses only</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#74D3C9">FAMILIES</span><span class="chip" style="background:#74D3C9">YNG</span></div><div class="who">Families, YNG community &amp; Key Associates</div></div>
 </div>'''
     body = f'''<div class="wrap">{topbar(role)}
 <header class="hero"><div><h1>Departures</h1>
@@ -239,7 +239,7 @@ def flight_page(ev_raw, role) -> str:
         seeking = ('<section class="card"><div class="k mono" style="font-size:13px;letter-spacing:3px;color:var(--gold)">'
                    'CAPTAIN</div><div class="who">This flight is still looking for its Day Chair.</div></section>')
     regional = ('<p style="margin:0;color:var(--dim);font-size:14px">Regional or global YPO experience: shown here so the '
-                'whole chapter knows, without chapter emails.</p>') if ev["is_regional"] else ""
+                'whole chapter knows.</p>') if ev["is_regional"] else ""
     date_v = ev["date_label"] if (at_least(k, "dated") or ev["is_regional"] or k == "scheduled") else "Set by your captain"
     body = f'''<div class="wrap">{topbar(role)}
 <a href="/" style="font-size:14px">← All departures</a>
