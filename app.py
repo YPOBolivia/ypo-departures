@@ -1,6 +1,7 @@
 """YPO Bolivia Departures: the season's experiences as an airport board, with stage emails."""
 import datetime as dt
 import os
+import re
 import secrets
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -68,12 +69,111 @@ def blank_none(v: str):
     return v or None
 
 
-EVENTS_SQL = "SELECT * FROM events ORDER BY start_date NULLS LAST, id"
+# Scores come live from YPO Experience Intelligence (same database) when a flight is linked to its
+# feedback event there; otherwise the score typed in the Control tower is used.
+# Overall satisfaction is stored 0–1 in Experience Intelligence; 1 + 4·x puts it back on the /5 scale.
+EVENT_SELECT = """
+SELECT e.*, e.score AS manual_score, e.score_n AS manual_score_n, ei.name AS ei_name,
+       COALESCE(ei.score, e.score) AS score, COALESCE(ei.n, e.score_n) AS score_n
+FROM departures.events e
+LEFT JOIN LATERAL (
+  SELECT ev.canonical_name AS name,
+         round(1 + 4 * avg(f.response_normalized), 2) AS score,
+         nullif(count(DISTINCT f.respondent_id), 0) AS n
+  FROM public.event ev
+  LEFT JOIN public.feedback f ON f.event_id = ev.event_id
+   AND f.question_canonical_id = (SELECT question_canonical_id FROM public.question_canonical
+                                  WHERE concept_key = 'overall_satisfaction')
+  WHERE ev.event_id = e.ei_event_id
+  GROUP BY ev.canonical_name
+) ei ON true
+"""
+EVENTS_SQL = EVENT_SELECT + " ORDER BY e.start_date NULLS LAST, e.id"
+EI_EVENTS_SQL = """SELECT event_id::text AS id, canonical_name AS name, coalesce(fiscal_year, '') AS fy
+                   FROM public.event ORDER BY fiscal_year DESC NULLS LAST, canonical_name"""
+
+
+def get_event(event_id: int):
+    return db.one(EVENT_SELECT + " WHERE e.id=%s", (event_id,))
+
+# Every flight takes off at 07:30 Eastern Time on its start date, whatever time the event itself starts.
+# Postgres handles the time zone (including daylight saving), so no scheduler is needed: the board
+# checks on every visit and moves any flight whose moment has come.
+TAKEOFF_DUE = "(now() AT TIME ZONE 'America/New_York') >= (start_date + time '07:30')"
+# Lands the morning after the event ends, also at 07:30 Eastern.
+# The morning task may run a few minutes either side of 07:30, so it only checks the date.
+TAKEOFF_DUE_TODAY = "start_date <= (now() AT TIME ZONE 'America/New_York')::date"
+LANDING_DUE = "(now() AT TIME ZONE 'America/New_York') >= (coalesce(end_date, start_date) + 1 + time '07:30')"
+
+
+def _move(to_status: str, from_where: str, due: str):
+    return db.all(f"""
+WITH due AS (
+  SELECT id, status FROM events WHERE {from_where} AND start_date IS NOT NULL AND {due} FOR UPDATE
+), moved AS (
+  UPDATE events e SET status='{to_status}', status_note=NULL, updated_at=now()
+  FROM due d WHERE e.id=d.id
+  RETURNING e.id, d.status AS from_status
+)
+INSERT INTO status_log (event_id, from_status, to_status)
+SELECT id, from_status, '{to_status}' FROM moved
+RETURNING event_id""")
+
+
+def auto_advance(morning_task: bool = False):
+    """Takeoff at 07:30 Eastern on the start date; landing at 07:30 Eastern the day after the end date."""
+    took_off = _move("in_flight", "status NOT IN ('in_flight','landed')",
+                     TAKEOFF_DUE_TODAY if morning_task else TAKEOFF_DUE)
+    _move("landed", "status = 'in_flight'", LANDING_DUE)
+    # Emails still waiting for approval are no longer useful once the flight took off.
+    if took_off:
+        db.run("UPDATE email_queue SET status='discarded', decided_at=now(), error='Flight took off before approval' "
+               "WHERE status='pending' AND stage <> 'in_flight' AND event_id = ANY(%s)",
+               ([r["event_id"] for r in took_off],))
+
+
+def send_morning_reminders(base: str) -> list[str]:
+    """The only email that goes out on its own: the morning-of reminder to the flight's gate."""
+    flights = db.all("""
+SELECT * FROM events e
+WHERE status='in_flight' AND scope='chapter' AND cardinality(mail_lists) > 0
+  AND start_date = (now() AT TIME ZONE 'America/New_York')::date
+  AND NOT EXISTS (SELECT 1 FROM email_queue q WHERE q.event_id=e.id AND q.stage='in_flight')""")
+    done = []
+    for ev in flights:
+        subject, html, text = emails.render(ev, "in_flight", base)
+        try:
+            mailer.send(ev["mail_lists"], subject, html, text)
+            db.run("""INSERT INTO email_queue (event_id, stage, recipients, subject, html, text, status, decided_at)
+                      VALUES (%s,'in_flight',%s,%s,%s,%s,'sent',now())""",
+                   (ev["id"], ev["mail_lists"], subject, html, text))
+            done.append(ev["code"])
+        except mailer.MailError as ex:
+            # If it can't go out on its own, it waits in the Outbox for a manual send.
+            db.run("""INSERT INTO email_queue (event_id, stage, recipients, subject, html, text, error)
+                      VALUES (%s,'in_flight',%s,%s,%s,%s,%s)""",
+                   (ev["id"], ev["mail_lists"], subject, html, text, f"Automatic reminder failed: {ex}"))
+    return done
+
+
+@app.post("/tasks/daily")
+async def daily_task(request: Request):
+    """Called every morning around 07:30 Eastern by the Apps Script inside events@."""
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    secret = os.environ.get("MAIL_SECRET", "")
+    if not secret or not secrets.compare_digest(str(data.get("secret", "")), secret):
+        return Response(status_code=403)
+    auto_advance(morning_task=True)
+    sent = send_morning_reminders(os.environ.get("BASE_URL") or str(request.base_url))
+    return {"ok": True, "reminders_sent": sent}
 
 
 def prepare_email(event_id: int, stage: str, request: Request) -> bool:
     """Creates (or refreshes) the pending email for this flight and stage. Returns True if one is waiting."""
-    ev = db.one("SELECT * FROM events WHERE id=%s", (event_id,))
+    ev = get_event(event_id)
     if not ev or stage not in MAIL_STAGES or ev["scope"] != "chapter" or not ev["mail_lists"]:
         return False
     subject, html, text = emails.render(ev, stage, base_url(request))
@@ -127,19 +227,21 @@ def logout(request: Request):
 def board(request: Request):
     if (r := need(request)):
         return r
+    auto_advance()
     events = db.all(EVENTS_SQL)
     updated = db.one("SELECT max(updated_at) AS u FROM events")["u"]
     return views.board_page(events, role(request), updated)
 
 
 def _flight(code: str):
-    return db.one("SELECT * FROM events WHERE upper(code)=upper(%s)", (code,))
+    return db.one(EVENT_SELECT + " WHERE upper(e.code)=upper(%s)", (code,))
 
 
 @app.get("/flight/{code}", response_class=HTMLResponse)
 def flight(request: Request, code: str):
     if (r := need(request)):
         return r
+    auto_advance()
     ev = _flight(code)
     if not ev:
         return go("/")
@@ -173,6 +275,7 @@ def media(token: str):
 def admin(request: Request):
     if (r := need(request, admin=True)):
         return r
+    auto_advance()
     pending = db.one("SELECT count(*) AS n FROM email_queue WHERE status='pending'")["n"]
     return views.admin_page(db.all(EVENTS_SQL), pending, pop_flash(request))
 
@@ -181,7 +284,7 @@ def admin(request: Request):
 def new_event_form(request: Request):
     if (r := need(request, admin=True)):
         return r
-    return views.admin_event_page(None)
+    return views.admin_event_page(None, ei_events=db.all(EI_EVENTS_SQL))
 
 
 def _form_values(form) -> dict:
@@ -191,6 +294,9 @@ def _form_values(form) -> dict:
     scope = "regional" if form.get("scope") == "regional" else "chapter"
     gate = GATE_BY_KEY.get(form.get("gate") or "all", GATE_BY_KEY["all"])
     score = blank_none(form.get("score"))
+    ei = blank_none(form.get("ei_event_id"))
+    if ei and not re.fullmatch(r"[0-9a-fA-F-]{36}", ei):
+        ei = None
     score_n = blank_none(form.get("score_n"))
     return {
         "name": (form.get("name") or "").strip(),
@@ -211,11 +317,12 @@ def _form_values(form) -> dict:
         "mail_lists": list(gate[4]) if scope == "chapter" else [],
         "score": float(score.replace(",", ".")) if score else None,
         "score_n": int(score_n) if score_n else None,
+        "ei_event_id": ei,
     }
 
 
 COLS = ["name", "status", "status_note", "previous_date", "start_date", "end_date", "city", "connect_url",
-        "day_chair", "champions", "quote", "audience_label", "scope", "chips", "tags", "mail_lists", "score", "score_n"]
+        "day_chair", "champions", "quote", "audience_label", "scope", "chips", "tags", "mail_lists", "score", "score_n", "ei_event_id"]
 
 
 @app.post("/admin/event/new", response_class=HTMLResponse)
@@ -226,9 +333,9 @@ async def create_event(request: Request):
     try:
         v = _form_values(form)
     except ValueError:
-        return views.admin_event_page(None, error="Please check the dates and the score.")
+        return views.admin_event_page(None, ei_events=db.all(EI_EVENTS_SQL), error="Please check the dates and the score.")
     if not v["name"] or not v["audience_label"]:
-        return views.admin_event_page(None, error="Name and audience are required.")
+        return views.admin_event_page(None, ei_events=db.all(EI_EVENTS_SQL), error="Name and audience are required.")
     last = db.one("SELECT max(substring(code from 4)::int) AS n FROM events WHERE code ~ '^YPO[0-9]+$'")["n"] or 2600
     code = f"YPO{last + 1}"
     cols = ", ".join(COLS + ["code"])
@@ -243,10 +350,10 @@ async def create_event(request: Request):
 def edit_event_form(request: Request, event_id: int):
     if (r := need(request, admin=True)):
         return r
-    ev = db.one("SELECT * FROM events WHERE id=%s", (event_id,))
+    ev = get_event(event_id)
     if not ev:
         return go("/admin")
-    return views.admin_event_page(ev, pop_flash(request))
+    return views.admin_event_page(ev, pop_flash(request), ei_events=db.all(EI_EVENTS_SQL))
 
 
 @app.post("/admin/event/{event_id}", response_class=HTMLResponse)
@@ -260,9 +367,9 @@ async def save_event(request: Request, event_id: int):
     try:
         v = _form_values(form)
     except ValueError:
-        return views.admin_event_page(old, error="Please check the dates and the score.")
+        return views.admin_event_page(get_event(event_id), ei_events=db.all(EI_EVENTS_SQL), error="Please check the dates and the score.")
     if not v["name"] or not v["audience_label"]:
-        return views.admin_event_page(old, error="Name and audience are required.")
+        return views.admin_event_page(get_event(event_id), ei_events=db.all(EI_EVENTS_SQL), error="Name and audience are required.")
     # A delayed flight remembers its old date automatically.
     if (v["status"] == "delayed" and not v["previous_date"] and old["start_date"]
             and (v["start_date"], v["end_date"]) != (old["start_date"], old["end_date"])):
@@ -311,13 +418,16 @@ async def upload_photo(request: Request, event_id: int, photo: UploadFile = File
 def outbox(request: Request):
     if (r := need(request, admin=True)):
         return r
+    auto_advance()
     # Rebuild every waiting email from the flight's current details and the current design,
     # so what you preview is always exactly what will be sent.
     for p in db.all("SELECT event_id, stage FROM email_queue WHERE status='pending'"):
         prepare_email(p["event_id"], p["stage"], request)
     items = db.all("""SELECT q.*, e.code FROM email_queue q JOIN events e ON e.id=q.event_id
                       WHERE q.status='pending' ORDER BY q.created_at""")
-    return views.outbox_page(items, pop_flash(request))
+    sent = db.all("""SELECT q.id, q.stage, q.subject, q.recipients, q.decided_at, e.code FROM email_queue q
+                     JOIN events e ON e.id=q.event_id WHERE q.status='sent' ORDER BY q.decided_at DESC LIMIT 15""")
+    return views.outbox_page(items, pop_flash(request), sent)
 
 
 @app.get("/admin/outbox/{item_id}/preview", response_class=HTMLResponse)

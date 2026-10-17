@@ -28,7 +28,7 @@ def e(v) -> str:
 def score_label(ev):
     if ev.get("score") is None:
         return ""
-    s = f"★ {float(ev['score']):.1f}/5"
+    s = f"★ {float(ev['score']):.2f}/5"
     if ev.get("score_n"):
         s += f" · {ev['score_n']} responses"
     return s
@@ -56,7 +56,7 @@ def enrich(ev: dict) -> dict:
     k = st["key"]
     if not note:
         if k == "landed":
-            note = score_label(ev)
+            note = score_label(ev) or "Baggage claim · feedback in progress"
         elif k == "delayed" and ev.get("previous_date"):
             note = f"Was: {ev['previous_date']}"
         elif k == "boarding":
@@ -92,8 +92,8 @@ def topbar(role: str | None, current: str = "") -> str:
         links.append('<a href="/admin">Control tower</a>')
     if role:
         links.append('<a href="/logout">Log out</a>')
-    return (f'<div class="topbar"><div class="brand"><span class="mark">YPO</span>'
-            f'<span class="name">BOLIVIA INTEGRATED</span></div>'
+    return (f'<div class="topbar"><a class="brand" href="/" aria-label="Departures home">'
+            f'<img class="logo" src="/static/logo-h-white.png" alt="YPO Bolivia Integrated" width="214" height="40"></a>'
             f'<nav aria-label="Main">{"".join(links)}</nav></div>')
 
 
@@ -113,9 +113,9 @@ def chips_html(ev) -> str:
 def login_page(error: str = "") -> str:
     err = f'<p class="err" role="alert">{e(error)}</p>' if error else ""
     body = f'''<main class="login"><form method="post" action="/login">
-<div class="brand"><span class="mark">YPO</span><span class="name">BOLIVIA INTEGRATED</span></div>
-<h1>Departures</h1>
-<p style="margin:0;color:var(--muted);line-height:1.5">The experiences our community is creating this season.</p>
+<img src="/static/logo-stack-white.png" alt="YPO Bolivia Integrated" width="110" height="128" style="align-self:center;margin-bottom:8px">
+<h1 style="text-align:center">Departures</h1>
+<p style="margin:0;color:var(--muted);line-height:1.5;text-align:center">The experiences our community is creating this season.</p>
 <label>Password<input type="password" name="password" autocomplete="current-password" required autofocus></label>
 {err}<button class="btn" type="submit">Enter</button></form></main>'''
     return page("Departures · YPO Bolivia", body)
@@ -241,6 +241,9 @@ def flight_page(ev_raw, role) -> str:
     landed = ""
     if k == "landed" and ev.get("score") is not None:
         landed = f'<div class="flash">Our community rated this flight {e(score_label(ev))}.</div>'
+    elif k == "landed":
+        landed = ('<div class="flash">Baggage claim: we are gathering your feedback. '
+                  'The score will appear here once it is in.</div>')
     seeking = ""
     if not ev["captain_shown"] and not ev["is_regional"] and k != "landed":
         seeking = ('<section class="card"><div class="k mono" style="font-size:13px;letter-spacing:3px;color:var(--gold)">'
@@ -300,7 +303,8 @@ def poster_page(ev_raw, role) -> str:
 <div style="display:flex;flex-direction:column;gap:10px"><div class="mono" style="font-size:16px;letter-spacing:3px;color:{accent}">{ev["lead_kicker"]}</div>
 <div style="font-family:var(--serif);font-weight:600;font-size:50px;line-height:1.05">{e(ev["lead"])}</div>{champs}</div>{quote}</div></div>'''
     else:
-        extra = f'<div class="mono" style="font-size:40px;color:#9FB0C8">{e(score_label(ev))}</div>' if k == "landed" else ""
+        extra = (f'<div class="mono" style="font-size:40px;color:#9FB0C8">{e(score_label(ev) or "Baggage claim · feedback in progress")}</div>'
+                 if k == "landed" else "")
         middle = f'<div style="flex-grow:1;display:flex;flex-direction:column;justify-content:center;gap:20px">{extra}<div style="font-size:26px;color:#B9C4D6;line-height:1.5;max-width:760px">For {e(ev.get("audience_label"))}.</div></div>'
     date_v = ev["date_label"] if (at_least(k, "dated") or ev["is_regional"]) else "Set by your captain"
     next_stop = ""
@@ -310,7 +314,7 @@ def poster_page(ev_raw, role) -> str:
         next_stop = f'<div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:8px"><span class="mono" style="font-size:13px;letter-spacing:2px;color:#8FA3C4">NEXT STOP</span><span class="mono" style="font-weight:600;font-size:22px;color:{nxt["color"]}">{e(nxt["label"])}</span></div>'
     chips = "".join(f'<span class="chip" style="background:{c["color"]};font-size:18px">{e(c["label"])}</span>' for c in ev["chips_rich"])
     poster = f'''<div id="poster" style="width:1080px;height:1350px;box-sizing:border-box;background:#041E42;color:#F3EEE3;font-family:var(--sans);padding:64px;display:flex;flex-direction:column;gap:40px;overflow:hidden">
-<div style="display:flex;justify-content:space-between;align-items:center"><div class="brand"><span class="mark" style="font-size:24px">YPO</span><span class="name" style="font-size:16px">BOLIVIA</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center"><img src="/static/logo-h-white.png" alt="YPO Bolivia Integrated" width="300" height="56">
 <div class="mono" style="display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600;letter-spacing:2px;color:{st["color"]}">{lamp(st)}{e(kicker)}</div></div>
 <div style="display:flex;flex-direction:column;gap:12px"><div class="mono" style="font-size:20px;letter-spacing:4px;color:#B9C4D6">FLIGHT {e(ev["code"])} · {e(ev["name"].upper())}</div>
 <h1 style="margin:0;font-family:var(--serif);font-weight:600;font-size:104px;line-height:.98;letter-spacing:-2px">{headline}</h1></div>
@@ -373,7 +377,7 @@ def _opt(value, current, label=None):
     return f'<option value="{e(value)}"{sel}>{e(label or value)}</option>'
 
 
-def admin_event_page(ev, flash="", error="") -> str:
+def admin_event_page(ev, flash="", error="", ei_events=None) -> str:
     new = ev is None
     ev = ev or {"status": "scheduled", "scope": "chapter", "chips": [], "tags": [], "mail_lists": []}
     action = "/admin/event/new" if new else f"/admin/event/{ev['id']}"
@@ -385,6 +389,14 @@ def admin_event_page(ev, flash="", error="") -> str:
     gates = "".join(_opt(g[0], cur_gate, g[1] + (" → " + " + ".join(x.split("@")[0] + "@" for x in g[4]) if g[4] else " → no emails"))
                     for g in GATES)
     lists_now = ", ".join(ev.get("mail_lists") or []) or "no emails"
+    cur_ei = str(ev.get("ei_event_id") or "")
+    ei_opts = '<option value="">Not linked</option>' + "".join(
+        _opt(x["id"], cur_ei, f'{x["fy"]} · {x["name"]}' if x["fy"] else x["name"]) for x in (ei_events or []))
+    ei_live = ""
+    if cur_ei:
+        live = (f'{float(ev["score"]):.2f}/5 from {ev["score_n"]} responses' if ev.get("score") is not None and ev.get("ei_name")
+                else "no feedback loaded yet")
+        ei_live = f'<p class="wide help" style="margin:0;font-size:14px">Live score from Experience Intelligence: <strong class="mono">{e(live)}</strong></p>'
     photo = ""
     if not new:
         cur = (f'<img class="avatar" src="/media/{e(ev["photo_token"])}" alt="Current photo">' if ev.get("photo_token")
@@ -417,15 +429,18 @@ def admin_event_page(ev, flash="", error="") -> str:
 <label class="wide">Gate<select name="gate">{gates}</select>
 <span class="help">Sets the board labels, the filters and the mailing list together. Regional flights never send emails.</span></label>
 <p class="wide help" style="margin:0;font-size:14px">Emails currently go to: <strong class="mono">{lists_now}</strong></p>
-<label>Score /5 (when landed)<input name="score" inputmode="decimal" value="{e(ev.get("score"))}"></label>
-<label>Responses<input name="score_n" inputmode="numeric" value="{e(ev.get("score_n"))}"></label>
+<label class="wide">Feedback in Experience Intelligence<select name="ei_event_id">{ei_opts}</select>
+<span class="help">Link the flight to its feedback event and the score appears on its own, with two decimals, as soon as the feedback is loaded there.</span></label>
+{ei_live}
+<label>Score /5, only if not linked<input name="score" inputmode="decimal" value="{e(ev.get("manual_score", ev.get("score")))}" placeholder="e.g. 4.92"></label>
+<label>Responses, only if not linked<input name="score_n" inputmode="numeric" value="{e(ev.get("manual_score_n", ev.get("score_n")))}"></label>
 </div><div class="actions" style="margin-top:20px"><button class="btn" type="submit">Save</button>
 {"" if new else f'<a class="btn ghost" href="/flight/{e(ev.get("code"))}">View flight</a><a class="btn ghost" href="/flight/{e(ev.get("code"))}/poster">Poster</a>'}</div></form>
 {photo}</div>'''
     return page("Edit flight · Departures", body)
 
 
-def outbox_page(items, flash="") -> str:
+def outbox_page(items, flash="", sent=None) -> str:
     fl = f'<div class="flash" role="status">{e(flash)}</div>' if flash else ""
     cards = []
     for it in items:
@@ -443,7 +458,19 @@ def outbox_page(items, flash="") -> str:
 <form method="post" action="/admin/outbox/{it["id"]}/discard"><button class="btn small danger" type="submit">Discard</button></form>
 </div>{f'<p class="err">{e(it["error"])}</p>' if it.get("error") else ""}</article>''')
     inner = "".join(cards) or '<div class="card"><div class="who">Nothing waiting. When a flight moves to a stage with ✉, its email appears here.</div></div>'
+    rows = []
+    for x in (sent or []):
+        st = STAGE_BY_KEY.get(x["stage"], STAGE_BY_KEY["scheduled"])
+        when = x["decided_at"].astimezone(LA_PAZ).strftime("%d %b %H:%M") if x.get("decided_at") else ""
+        auto = " · automatic" if x["stage"] == "in_flight" else ""
+        rows.append(f'<tr><td class="mono">{e(when)}</td><td class="mono" style="color:{st["color"]}">{e(st["label"])}{auto}</td>'
+                    f'<td>{e(x["subject"])}</td><td class="mono help">{e(", ".join(x["recipients"]))}</td></tr>')
+    history = ""
+    if rows:
+        history = (f'<section class="section"><h2 style="font-size:28px">Recently sent</h2><div class="scroll"><table class="atable">'
+                   f'<thead><tr><th>SENT (LA PAZ)</th><th>STAGE</th><th>SUBJECT</th><th>TO</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>')
     body = f'''<div class="wrap">{topbar("admin")}<a href="/admin" style="font-size:14px">← Control tower</a>
-<header class="hero"><div><h1>Outbox</h1><p>Every email waits here until you approve it. Sent from events@ypobolivia.com.</p></div></header>
-{fl}{inner}</div>'''
+<header class="hero"><div><h1>Outbox</h1><p>Every email waits here until you approve it. Sent from events@ypobolivia.com.
+The morning-of reminder is the only one that goes out on its own, at 07:30 Eastern.</p></div></header>
+{fl}{inner}{history}</div>'''
     return page("Outbox · Departures", body)
