@@ -13,6 +13,8 @@ STAGES = [
      "desc": "Registration open on YPO Connect."},
     {"key": "final_call", "label": "Final call",         "color": "#F2A93B", "mail": True,
      "desc": "Last seats or registration closing."},
+    {"key": "gate_closed", "label": "Gate closed",       "color": "#B9A3F0", "mail": False,
+     "desc": "Registration closed. See you on the day."},
     {"key": "delayed",    "label": "Delayed",            "color": "#F08A75", "mail": False,
      "desc": "A new date, shared gracefully."},
     {"key": "in_flight",  "label": "In flight",          "color": "#FFFFFF", "mail": False,
@@ -24,7 +26,7 @@ STAGE_BY_KEY = {s["key"]: s for s in STAGES}
 STAGE_KEYS = [s["key"] for s in STAGES]
 MAIL_STAGES = {s["key"] for s in STAGES if s["mail"]}
 # The main path (delayed is a detour, not a step).
-TRACK = ["scheduled", "captain", "dated", "boarding", "final_call", "in_flight", "landed"]
+TRACK = ["scheduled", "captain", "dated", "boarding", "final_call", "gate_closed", "in_flight", "landed"]
 
 CHIP_COLORS = {
     "MEMBERS": "#D6B26E",

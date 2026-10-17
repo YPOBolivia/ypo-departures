@@ -60,6 +60,8 @@ def enrich(ev: dict) -> dict:
             note = "Setting the date"
         elif k == "dated":
             note = "Registration opening soon"
+        elif k == "gate_closed":
+            note = "Registration closed · see you there"
     ev["note"] = note
     return ev
 
@@ -267,6 +269,7 @@ POSTER_COPY = {
     "dated": ("DATE CONFIRMED", "Save<br>the date."),
     "boarding": ("NOW BOARDING", "Now<br>boarding."),
     "final_call": ("FINAL CALL", "Final<br>call."),
+    "gate_closed": ("GATE CLOSED", "All on board.<br>See you there."),
     "delayed": ("NEW DATE", "Same flight,<br>new date."),
     "in_flight": ("IN FLIGHT", "Today<br>we fly."),
     "landed": ("LANDED", "Thank you for<br>flying with us."),

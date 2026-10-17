@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS events (
   end_date       date,
   city           text,
   status         text NOT NULL DEFAULT 'scheduled'
-                 CHECK (status IN ('scheduled','captain','dated','boarding','final_call','delayed','in_flight','landed')),
+                 CHECK (status IN ('scheduled','captain','dated','boarding','final_call','gate_closed','delayed','in_flight','landed')),
   status_note    text,
   previous_date  text,
   day_chair      text,
