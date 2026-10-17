@@ -80,3 +80,28 @@ def track_position(status: str) -> int:
 
 def at_least(status: str, key: str) -> bool:
     return track_position(status) >= TRACK.index(key)
+
+
+# The gates: picking one sets the board chips, the filters and the mailing lists together.
+# (key, label, chips, filter tags, mailing lists for chapter flights)
+GATES = [
+    ("members",  "Members only",                              ["MEMBERS"],     ["members"],                        [LISTS["members"]]),
+    ("all",      "Members & spouses",                         ["ALL"],         ["members", "spouses"],             [LISTS["all"]]),
+    ("men",      "Male members & male spouses",               ["MEN"],         ["members", "spouses"],             [LISTS["all"]]),
+    ("women",    "Female members & female spouses",           ["WOMEN"],       ["members", "spouses"],             [LISTS["all"]]),
+    ("spouses",  "Spouses only",                              ["SPOUSES"],     ["spouses"],                        [LISTS["spouses"]]),
+    ("families", "Families",                                  ["FAMILIES"],    ["members", "spouses", "families"], [LISTS["all"], LISTS["yng"]]),
+    ("all_yng",  "Members, spouses, YNG & key associates",    ["ALL", "YNG"],  ["members", "spouses", "families"], [LISTS["all"], LISTS["yng"]]),
+    ("new",      "New members & spouses",                     ["NEW MEMBERS"], ["members", "spouses"],             []),
+    ("officers", "Elect officers only",                       ["OFFICERS"],    ["members"],                        []),
+    ("rex",      "REX & incoming CCs",                        ["REX"],         ["members"],                        []),
+]
+GATE_BY_KEY = {g[0]: g for g in GATES}
+
+
+def gate_for_chips(chips):
+    chips = [c.upper() for c in (chips or [])]
+    for g in GATES:
+        if g[2] == chips:
+            return g[0]
+    return "all"

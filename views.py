@@ -3,7 +3,7 @@ import datetime as dt
 from html import escape as _esc
 
 from stages import (STAGES, STAGE_BY_KEY, TRACK, LISTS, LA_PAZ, fmt_dates, chip_list,
-                    track_position, at_least)
+                    track_position, at_least, GATES, gate_for_chips)
 
 SEASON = "FY26-27"
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -122,7 +122,7 @@ def board_row(ev) -> str:
     st = ev["stage"]
     flaps = "".join(f'<span class="flap">{e(c)}</span>' for c in ev["code"])
     tba = " tba" if ev["date_label"].startswith("—") else ""
-    if ev["is_regional"]:
+    if ev["is_regional"] or (st["key"] == "landed" and not ev["captain_shown"]):
         cap = ""
     elif ev["captain_shown"]:
         cap = f'<div class="cap">Captain: {e(ev["day_chair"])}</div>'
@@ -237,7 +237,7 @@ def flight_page(ev_raw, role) -> str:
     if k == "landed" and ev.get("score") is not None:
         landed = f'<div class="flash">Our community rated this flight {e(score_label(ev))}.</div>'
     seeking = ""
-    if not ev["captain_shown"] and not ev["is_regional"]:
+    if not ev["captain_shown"] and not ev["is_regional"] and k != "landed":
         seeking = ('<section class="card"><div class="k mono" style="font-size:13px;letter-spacing:3px;color:var(--gold)">'
                    'CAPTAIN</div><div class="who">This flight is still looking for its Day Chair.</div></section>')
     regional = ('<p style="margin:0;color:var(--dim);font-size:14px">Regional or global YPO experience: shown here so the '
@@ -376,7 +376,10 @@ def admin_event_page(ev, flash="", error="") -> str:
                        for i, s in enumerate(STAGES))
     scope = _opt("chapter", ev.get("scope"), "Chapter (sends emails)") + _opt("regional", ev.get("scope"), "Regional / global (no emails)")
     def d(v): return v.isoformat() if v else ""
-    lists_val = ", ".join(ev.get("mail_lists") or [])
+    cur_gate = gate_for_chips(ev.get("chips"))
+    gates = "".join(_opt(g[0], cur_gate, g[1] + (" → " + " + ".join(x.split("@")[0] + "@" for x in g[4]) if g[4] else " → no emails"))
+                    for g in GATES)
+    lists_now = ", ".join(ev.get("mail_lists") or []) or "no emails"
     photo = ""
     if not new:
         cur = (f'<img class="avatar" src="/media/{e(ev["photo_token"])}" alt="Current photo">' if ev.get("photo_token")
@@ -403,14 +406,12 @@ def admin_event_page(ev, flash="", error="") -> str:
 <label>Day Chair<input name="day_chair" value="{e(ev.get("day_chair"))}"></label>
 <label>Champions<input name="champions" value="{e(ev.get("champions"))}" placeholder="e.g. Ana Pérez and Luis Rojas"></label>
 <label class="wide">Day Chair quote<textarea name="quote" placeholder="Why I created this experience for our community, in one sentence.">{e(ev.get("quote"))}</textarea></label>
-<label class="wide">Audience (as it reads in the calendar)<input name="audience_label" required value="{e(ev.get("audience_label"))}"></label>
+<label class="wide">Audience (as it reads in the calendar)<input name="audience_label" required value="{e(ev.get("audience_label"))}">
+<span class="help">The exact wording shown to the community, e.g. "Male Members &amp; Male Spouses".</span></label>
 <label>Type<select name="scope">{scope}</select></label>
-<label>Gate chips<input name="chips" value="{e(", ".join(ev.get("chips") or []))}" placeholder="MEMBERS, ALL, MEN, WOMEN, FAMILIES, YNG">
-<span class="help">Comma separated labels shown on the board.</span></label>
-<label>Filters<input name="tags" value="{e(", ".join(ev.get("tags") or []))}" placeholder="members, spouses, families">
-<span class="help">Which board filters show this flight.</span></label>
-<label>Emails go to<input name="mail_lists" value="{e(lists_val)}" placeholder="all@ypobolivia.com, yng@ypobolivia.com">
-<span class="help">Comma separated. Leave empty for no emails.</span></label>
+<label class="wide">Gate<select name="gate">{gates}</select>
+<span class="help">Sets the board labels, the filters and the mailing list together. Regional flights never send emails.</span></label>
+<p class="wide help" style="margin:0;font-size:14px">Emails currently go to: <strong class="mono">{lists_now}</strong></p>
 <label>Score /5 (when landed)<input name="score" inputmode="decimal" value="{e(ev.get("score"))}"></label>
 <label>Responses<input name="score_n" inputmode="numeric" value="{e(ev.get("score_n"))}"></label>
 </div><div class="actions" style="margin-top:20px"><button class="btn" type="submit">Save</button>
