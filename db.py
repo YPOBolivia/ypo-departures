@@ -12,7 +12,6 @@ def _get_pool():
     if _pool is None:
         _pool = pool.SimpleConnectionPool(
             1, 5, os.environ["DATABASE_URL"],
-            options="-c search_path=departures,public",
             connect_timeout=15,
         )
     return _pool
@@ -24,6 +23,8 @@ def _run(sql, params, fetch):
     broken = False
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # SET LOCAL lasts only for this transaction, which is what Neon's pooler allows.
+            cur.execute("SET LOCAL search_path TO departures, public")
             cur.execute(sql, params)
             rows = None
             if fetch == "all":
