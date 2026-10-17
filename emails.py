@@ -43,18 +43,23 @@ def render(ev_raw: dict, stage: str, base_url: str):
     c = COPY[stage]
     name = ev["name"]
     date = ev["date_label"]
-    has_captain = bool(ev.get("day_chair"))
+    has_captain = bool(ev["lead"])
     fields = {
         "name": e(name),
         "date": e(date),
-        "captain": e(ev.get("day_chair") or "Our Day Chair"),
+        "captain": e(ev["lead"] or "Our Day Chair"),
         "in_city": f" in <strong>{e(ev['city'])}</strong>" if ev.get("city") else "",
-        "captain_line": (f"Our captain, {e(ev['day_chair'])}, has prepared this experience for our community. "
+        "captain_line": ((f"Our champions, {e(ev['lead'])}, have" if ev["lead_is_champions"] else f"Our captain, {e(ev['lead'])}, has")
+                         + " prepared this experience for our community. "
                          if has_captain else ""),
         "note": f" ({e(ev['status_note'])})" if ev.get("status_note") else "",
     }
     subject = c["subject"].format(name=name, date=date)
-    body_html = c["body"].format(**fields)
+    body_tpl = c["body"]
+    if stage == "captain" and ev["lead_is_champions"]:
+        body_tpl = ("{captain} will lead <strong>{name}</strong> as Champions. The date, the destination and "
+                    "every detail are now in their hands, and we will let you know as soon as the date is confirmed.")
+    body_html = body_tpl.format(**fields)
     flight_url = f"{base_url.rstrip('/')}/flight/{ev['code']}"
     if stage in ("boarding", "final_call") and ev.get("connect_url"):
         cta_label, cta_url = "Register on YPO Connect", ev["connect_url"]
@@ -70,13 +75,13 @@ def render(ev_raw: dict, stage: str, base_url: str):
                  '<div style="width:72px;height:72px;border-radius:36px;background:#0B2C5C;border:2px solid #D6B26E"></div>')
         quote = (f'<div style="font-family:Georgia,serif;font-style:italic;font-size:16px;line-height:1.5;color:#4A5568;'
                  f'padding-top:6px">“{e(ev["quote"])}”</div>') if ev.get("quote") else ""
-        champs = (f'<div style="font-size:14px;color:#4A5568;padding-top:2px">With {e(ev["champions"])}</div>'
-                  if ev.get("champions") else "")
+        champs = (f'<div style="font-size:14px;color:#4A5568;padding-top:2px">{e(ev["crew_line"])}</div>'
+                  if ev["crew_line"] else "")
         captain_block = f'''<tr><td style="padding:0 40px 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F3EA;border-radius:12px">
 <tr><td width="96" style="padding:18px 0 18px 18px;vertical-align:top">{photo}</td>
 <td style="padding:18px;vertical-align:middle;font-family:Arial,Helvetica,sans-serif">
-<div style="font-family:'Courier New',monospace;font-size:12px;letter-spacing:2px;color:#6B5A2E">YOUR CAPTAIN</div>
-<div style="font-family:Georgia,serif;font-weight:bold;font-size:22px;color:#041E42;padding-top:4px">{e(ev["day_chair"])}</div>{champs}{quote}</td></tr></table></td></tr>'''
+<div style="font-family:'Courier New',monospace;font-size:12px;letter-spacing:2px;color:#6B5A2E">{"YOUR CHAMPIONS" if ev["lead_is_champions"] else "YOUR CAPTAIN"}</div>
+<div style="font-family:Georgia,serif;font-weight:bold;font-size:22px;color:#041E42;padding-top:4px">{e(ev["lead"])}</div>{champs}{quote}</td></tr></table></td></tr>'''
 
     chip_cells = "".join(
         f'<span style="display:inline-block;font-family:\'Courier New\',monospace;font-weight:bold;font-size:13px;'

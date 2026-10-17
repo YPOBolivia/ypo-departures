@@ -43,7 +43,12 @@ def enrich(ev: dict) -> dict:
     ev["chips_rich"] = chip_list(ev.get("chips"))
     ev["is_regional"] = ev.get("scope") == "regional"
     ev["photo_url"] = f"/media/{ev['photo_token']}" if ev.get("photo_token") else None
-    ev["captain_shown"] = bool(ev.get("day_chair")) and at_least(st["key"], "captain")
+    dc, ch = ev.get("day_chair"), ev.get("champions")
+    ev["lead"] = dc or ch
+    ev["lead_is_champions"] = bool(ch) and not dc
+    ev["lead_kicker"] = "YOUR CHAMPIONS ON THIS FLIGHT" if ev["lead_is_champions"] else "YOUR CAPTAIN ON THIS FLIGHT"
+    ev["crew_line"] = f"With {ch}" if (dc and ch) else ""
+    ev["captain_shown"] = bool(ev["lead"]) and at_least(st["key"], "captain")
     ev["tags"] = list(ev.get("tags") or [])
     ev["city_label"] = ev.get("city") or "TBA"
     # Short line under the status on the board.
@@ -125,7 +130,7 @@ def board_row(ev) -> str:
     if ev["is_regional"] or (st["key"] == "landed" and not ev["captain_shown"]):
         cap = ""
     elif ev["captain_shown"]:
-        cap = f'<div class="cap">Captain: {e(ev["day_chair"])}</div>'
+        cap = f'<div class="cap">{"Champions" if ev["lead_is_champions"] else "Captain"}: {e(ev["lead"])}</div>'
     else:
         cap = '<div class="cap none">Seeking a captain</div>'
     regional = '<span class="regional">REGIONAL · GLOBAL YPO</span>' if ev["is_regional"] else ""
@@ -204,12 +209,12 @@ def board_page(events, role, updated_at) -> str:
 def captain_card(ev, big=False) -> str:
     if not ev["captain_shown"]:
         return ""
-    avatar = (f'<img class="avatar" src="{e(ev["photo_url"])}" alt="{e(ev["day_chair"])}">' if ev["photo_url"]
+    avatar = (f'<img class="avatar" src="{e(ev["photo_url"])}" alt="{e(ev["lead"])}">' if ev["photo_url"]
               else f'<div class="avatar">{PERSON_ICON.format(s=40)}</div>')
-    champs = f'<div class="ch">With {e(ev["champions"])}</div>' if ev.get("champions") else ""
+    champs = f'<div class="ch">{e(ev["crew_line"])}</div>' if ev["crew_line"] else ""
     quote = f'<blockquote>“{e(ev["quote"])}”</blockquote>' if ev.get("quote") else ""
-    return f'''<section class="cabin" aria-label="Captain's cabin"><div class="k">YOUR CAPTAIN ON THIS FLIGHT</div>
-<div class="who">{avatar}<div><div class="nm">{e(ev["day_chair"])}</div>{champs}</div></div>{quote}</section>'''
+    return f'''<section class="cabin" aria-label="Captain's cabin"><div class="k">{ev["lead_kicker"]}</div>
+<div class="who">{avatar}<div><div class="nm">{e(ev["lead"])}</div>{champs}</div></div>{quote}</section>'''
 
 
 def track_html(ev) -> str:
@@ -288,12 +293,12 @@ def poster_page(ev_raw, role) -> str:
                  f'<div style="display:flex;flex-direction:column;align-items:center;gap:14px;color:#8FA3C4">{PERSON_ICON.format(s=72)}</div>')
         quote = (f'<blockquote style="margin:0;font-family:var(--serif);font-style:italic;font-size:32px;line-height:1.3;'
                  f'border-top:1px solid #2C4A78;padding-top:26px">“{e(ev["quote"])}”</blockquote>') if ev.get("quote") else ""
-        champs = f'<div style="font-size:20px;color:#B9C4D6">With {e(ev["champions"])}</div>' if ev.get("champions") else ""
+        champs = f'<div style="font-size:20px;color:#B9C4D6">{e(ev["crew_line"])}</div>' if ev["crew_line"] else ""
         middle = f'''<div style="display:flex;gap:40px;flex-grow:1;min-height:0">
 <div style="width:420px;flex:none;border-radius:16px;background:#0B2C5C;border:2px solid {accent};display:flex;align-items:center;justify-content:center;overflow:hidden">{photo}</div>
 <div style="display:flex;flex-direction:column;justify-content:space-between;gap:26px;min-width:0">
-<div style="display:flex;flex-direction:column;gap:10px"><div class="mono" style="font-size:16px;letter-spacing:3px;color:{accent}">YOUR CAPTAIN ON THIS FLIGHT</div>
-<div style="font-family:var(--serif);font-weight:600;font-size:50px;line-height:1.05">{e(ev["day_chair"])}</div>{champs}</div>{quote}</div></div>'''
+<div style="display:flex;flex-direction:column;gap:10px"><div class="mono" style="font-size:16px;letter-spacing:3px;color:{accent}">{ev["lead_kicker"]}</div>
+<div style="font-family:var(--serif);font-weight:600;font-size:50px;line-height:1.05">{e(ev["lead"])}</div>{champs}</div>{quote}</div></div>'''
     else:
         extra = f'<div class="mono" style="font-size:40px;color:#9FB0C8">{e(score_label(ev))}</div>' if k == "landed" else ""
         middle = f'<div style="flex-grow:1;display:flex;flex-direction:column;justify-content:center;gap:20px">{extra}<div style="font-size:26px;color:#B9C4D6;line-height:1.5;max-width:760px">For {e(ev.get("audience_label"))}.</div></div>'
@@ -349,7 +354,7 @@ def admin_page(events, pending, flash="") -> str:
         lists = ", ".join(x.split("@")[0] + "@" for x in (ev.get("mail_lists") or [])) or "—"
         rows.append(f'''<tr><td class="mono">{e(ev["code"])}</td><td class="mono">{e(ev["date_label"])}</td>
 <td><strong>{e(ev["name"])}</strong><div class="help">{e(ev.get("audience_label"))}</div></td>
-<td>{e(ev.get("day_chair") or "—")}</td>
+<td>{e(ev.get("day_chair") or "—")}{f'<div class="help">Champions: {e(ev["champions"])}</div>' if ev.get("champions") else ""}</td>
 <td><span style="display:inline-flex;align-items:center;gap:8px;color:{st["color"]}" class="mono">{lamp(st)}{e(st["label"])}</span></td>
 <td class="mono help">{e(lists)}</td>
 <td><a class="btn small ghost" href="/admin/event/{ev["id"]}">Edit</a></td></tr>''')
@@ -358,7 +363,7 @@ def admin_page(events, pending, flash="") -> str:
     body = f'''<div class="wrap">{topbar("admin")}
 <header class="hero"><div><h1>Control tower</h1><p>Move each flight along its journey. Emails never go out until you approve them.</p></div>
 <div class="actions"><a class="btn" href="/admin/outbox">Outbox{badge}</a><a class="btn ghost" href="/admin/event/new">New flight</a></div></header>
-{fl}<div class="scroll"><table class="atable"><thead><tr><th>FLIGHT</th><th>DATE</th><th>EXPERIENCE</th><th>DAY CHAIR</th><th>STATUS</th><th>EMAILS TO</th><th><span class="sr">Edit</span></th></tr></thead>
+{fl}<div class="scroll"><table class="atable"><thead><tr><th>FLIGHT</th><th>DATE</th><th>EXPERIENCE</th><th>DAY CHAIR · CHAMPIONS</th><th>STATUS</th><th>EMAILS TO</th><th><span class="sr">Edit</span></th></tr></thead>
 <tbody>{"".join(rows)}</tbody></table></div></div>'''
     return page("Control tower · Departures", body)
 
