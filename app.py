@@ -13,7 +13,7 @@ import db
 import emails
 import mailer
 import views
-from stages import MAIL_STAGES, STAGE_KEYS, GATE_BY_KEY, fmt_dates
+from stages import MAIL_STAGES, STAGE_KEYS, AUDIENCE_KEYS, derive, fmt_dates
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(SessionMiddleware, secret_key=os.environ["SECRET_KEY"],
@@ -295,7 +295,8 @@ def _form_values(form) -> dict:
     if status not in STAGE_KEYS:
         status = "scheduled"
     scope = "regional" if form.get("scope") == "regional" else "chapter"
-    gate = GATE_BY_KEY.get(form.get("gate") or "all", GATE_BY_KEY["all"])
+    chips = [k for k in AUDIENCE_KEYS if k in form.getlist("audience")] or ["MEMBERS", "SPOUSES"]
+    tags, lists = derive(chips, scope)
     score = blank_none(form.get("score"))
     ei = blank_none(form.get("ei_event_id"))
     if ei and not re.fullmatch(r"[0-9a-fA-F-]{36}", ei):
@@ -315,9 +316,9 @@ def _form_values(form) -> dict:
         "quote": blank_none(form.get("quote")),
         "audience_label": (form.get("audience_label") or "").strip(),
         "scope": scope,
-        "chips": list(gate[2]),
-        "tags": list(gate[3]),
-        "mail_lists": list(gate[4]) if scope == "chapter" else [],
+        "chips": chips,
+        "tags": tags,
+        "mail_lists": lists,
         "score": float(score.replace(",", ".")) if score else None,
         "score_n": int(score_n) if score_n else None,
         "ei_event_id": ei,

@@ -60,6 +60,9 @@ def render(ev_raw: dict, stage: str, base_url: str):
     c = COPY[stage]
     name = ev["name"]
     date = ev["date_label"]
+    # Day Chair on board comes before the date: the Day Chair sets it, so it is not shown yet.
+    if stage == "captain":
+        date = "Set by your captain"
     has_captain = bool(ev["lead"])
     fields = {
         "name": e(name),

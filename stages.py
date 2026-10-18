@@ -33,8 +33,10 @@ CHIP_COLORS = {
     "ALL": "#F3EEE3",
     "SPOUSES": "#E9B9C1",
     "MEN": "#9EC1F0",
-    "WOMEN": "#E9B9C1",
+    "WOMEN": "#F2C6A0",
     "FAMILIES": "#74D3C9",
+    "KEY ASSOCIATES": "#BFD7A5",
+    "GUESTS": "#D9C7F0",
     "YNG": "#74D3C9",
 }
 CHIP_DEFAULT = "#B9C4D6"
@@ -82,26 +84,50 @@ def at_least(status: str, key: str) -> bool:
     return track_position(status) >= TRACK.index(key)
 
 
-# The gates: picking one sets the board chips, the filters and the mailing lists together.
-# (key, label, chips, filter tags, mailing lists for chapter flights)
-GATES = [
-    ("members",  "Members only",                              ["MEMBERS"],     ["members"],                        [LISTS["members"]]),
-    ("all",      "Members & spouses",                         ["ALL"],         ["members", "spouses"],             [LISTS["all"]]),
-    ("men",      "Male members & male spouses",               ["MEN"],         ["members", "spouses"],             [LISTS["all"]]),
-    ("women",    "Female members & female spouses",           ["WOMEN"],       ["members", "spouses"],             [LISTS["all"]]),
-    ("spouses",  "Spouses only",                              ["SPOUSES"],     ["spouses"],                        [LISTS["spouses"]]),
-    ("families", "Families",                                  ["FAMILIES"],    ["members", "spouses", "families"], [LISTS["all"], LISTS["yng"]]),
-    ("all_yng",  "Members, spouses, YNG & key associates",    ["ALL", "YNG"],  ["members", "spouses", "families"], [LISTS["all"], LISTS["yng"]]),
-    ("new",      "New members & spouses",                     ["NEW MEMBERS"], ["members", "spouses"],             []),
-    ("officers", "Elect officers only",                       ["OFFICERS"],    ["members"],                        []),
-    ("rex",      "REX & incoming CCs",                        ["REX"],         ["members"],                        []),
+# Audiences: the Chapter Manager ticks who is invited; everything else follows from that.
+# (chip, what it means)
+AUDIENCES = [
+    ("MEMBERS", "Members"),
+    ("SPOUSES", "Spouses"),
+    ("FAMILIES", "Families (members, spouses and their children, YNG included)"),
+    ("YNG", "YNG community"),
+    ("KEY ASSOCIATES", "Key Associates"),
+    ("GUESTS", "Guests"),
+    ("MEN", "Men only (male members & male spouses)"),
+    ("WOMEN", "Women only (female members & female spouses)"),
+    ("NEW MEMBERS", "New members"),
+    ("OFFICERS", "Elect officers"),
+    ("REX", "REX & incoming CCs"),
 ]
-GATE_BY_KEY = {g[0]: g for g in GATES}
+AUDIENCE_KEYS = [a[0] for a in AUDIENCES]
+NO_LIST = {"KEY ASSOCIATES", "GUESTS", "NEW MEMBERS", "OFFICERS", "REX"}
 
 
-def gate_for_chips(chips):
-    chips = [c.upper() for c in (chips or [])]
-    for g in GATES:
-        if g[2] == chips:
-            return g[0]
-    return "all"
+def derive(chips, scope="chapter"):
+    """From the ticked audiences → (board filter tags, mailing lists)."""
+    c = set(chips or [])
+    members = bool(c & {"MEMBERS", "FAMILIES", "MEN", "WOMEN", "NEW MEMBERS", "OFFICERS", "REX"})
+    spouses = bool(c & {"SPOUSES", "FAMILIES", "MEN", "WOMEN"})
+    young = bool(c & {"FAMILIES", "YNG"})
+    tags = []
+    if members:
+        tags.append("members")
+    if spouses:
+        tags.append("spouses")
+    if young:
+        tags.append("families")
+    if c & {"KEY ASSOCIATES", "GUESTS"}:
+        tags.append("guests")
+    lists = []
+    if scope == "chapter":
+        # Men/women-only gatherings go to all@ and the email names the audience.
+        both = (c & {"FAMILIES", "MEN", "WOMEN"}) or ({"MEMBERS", "SPOUSES"} <= c)
+        if both:
+            lists.append(LISTS["all"])
+        elif "MEMBERS" in c:
+            lists.append(LISTS["members"])
+        elif "SPOUSES" in c:
+            lists.append(LISTS["spouses"])
+        if young:
+            lists.append(LISTS["yng"])
+    return tags, lists

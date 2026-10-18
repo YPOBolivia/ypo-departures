@@ -3,7 +3,7 @@ import datetime as dt
 from html import escape as _esc
 
 from stages import (STAGES, STAGE_BY_KEY, TRACK, LISTS, LA_PAZ, fmt_dates, chip_list,
-                    track_position, at_least, GATES, gate_for_chips)
+                    track_position, at_least, AUDIENCES, derive)
 
 SEASON = "FY26-27"
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -161,7 +161,7 @@ def board_page(events, role, updated_at) -> str:
         u = updated_at.astimezone(LA_PAZ)
         upd = f"Updated {u.day:02d} {u.strftime('%b').upper()} {u.year} · {u:%H:%M}"
     filters = [("all", "All flights"), ("members", "Members"), ("spouses", "Spouses"),
-               ("families", "Families & YNG"), ("chapter", "Chapter"), ("regional", "Regional")]
+               ("families", "Families & YNG"), ("guests", "Guests & KA"), ("chapter", "Chapter"), ("regional", "Regional")]
     pills = "".join(f'<button type="button" class="pill" data-filter="{k}" aria-pressed="{"true" if k == "all" else "false"}">{e(v)}</button>'
                     for k, v in filters)
     stages = "".join(
@@ -170,9 +170,12 @@ def board_page(events, role, updated_at) -> str:
 <div class="d">{e(s['desc'])}</div></div>''' for i, s in enumerate(STAGES))
     gates = f'''<div class="gates">
 <div class="card"><div class="chips"><span class="chip" style="background:#D6B26E">MEMBERS</span></div><div class="who">Members only</div></div>
-<div class="card"><div class="chips"><span class="chip" style="background:#F3EEE3">ALL</span><span class="chip" style="background:#9EC1F0">MEN</span><span class="chip" style="background:#E9B9C1">WOMEN</span></div><div class="who">Members &amp; spouses, including men-only and women-only gatherings</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#D6B26E">MEMBERS</span><span class="chip" style="background:#E9B9C1">SPOUSES</span></div><div class="who">Members &amp; spouses</div></div>
 <div class="card"><div class="chips"><span class="chip" style="background:#E9B9C1">SPOUSES</span></div><div class="who">Spouses only</div></div>
-<div class="card"><div class="chips"><span class="chip" style="background:#74D3C9">FAMILIES</span><span class="chip" style="background:#74D3C9">YNG</span></div><div class="who">Families, YNG community &amp; Key Associates</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#9EC1F0">MEN</span><span class="chip" style="background:#F2C6A0">WOMEN</span></div><div class="who">Men-only and women-only gatherings for members &amp; spouses</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#74D3C9">FAMILIES</span></div><div class="who">Members, spouses and their children, YNG included</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#74D3C9">YNG</span></div><div class="who">YNG community only</div></div>
+<div class="card"><div class="chips"><span class="chip" style="background:#BFD7A5">KEY ASSOCIATES</span><span class="chip" style="background:#D9C7F0">GUESTS</span></div><div class="who">Open to Key Associates or guests when the flight says so</div></div>
 </div>'''
     body = f'''<div class="wrap">{topbar(role)}
 <header class="hero"><div><h1>Departures</h1>
@@ -392,9 +395,11 @@ def admin_event_page(ev, flash="", error="", ei_events=None) -> str:
                        for i, s in enumerate(STAGES))
     scope = _opt("chapter", ev.get("scope"), "Chapter (sends emails)") + _opt("regional", ev.get("scope"), "Regional / global (no emails)")
     def d(v): return v.isoformat() if v else ""
-    cur_gate = gate_for_chips(ev.get("chips"))
-    gates = "".join(_opt(g[0], cur_gate, g[1] + (" → " + " + ".join(x.split("@")[0] + "@" for x in g[4]) if g[4] else " → no emails"))
-                    for g in GATES)
+    cur = set(ev.get("chips") or ["MEMBERS", "SPOUSES"])
+    boxes = "".join(
+        f'<label style="flex-direction:row;align-items:center;gap:10px;color:var(--ink)"><input type="checkbox" name="audience" value="{e(k)}"'
+        f'{" checked" if k in cur else ""} style="min-height:auto;width:20px;height:20px;accent-color:#D6B26E"> {e(lbl)}</label>'
+        for k, lbl in AUDIENCES)
     lists_now = ", ".join(ev.get("mail_lists") or []) or "no emails"
     cur_ei = str(ev.get("ei_event_id") or "")
     ei_opts = '<option value="">Not linked</option>' + "".join(
@@ -493,8 +498,11 @@ def admin_event_page(ev, flash="", error="", ei_events=None) -> str:
 <label class="wide">Audience (as it reads in the calendar)<input name="audience_label" required value="{e(ev.get("audience_label"))}">
 <span class="help">The exact wording shown to the community, e.g. "Male Members &amp; Male Spouses".</span></label>
 <label>Type<select name="scope">{scope}</select></label>
-<label class="wide">Gate<select name="gate">{gates}</select>
-<span class="help">Sets the board labels, the filters and the mailing list together. Regional flights never send emails.</span></label>
+<fieldset class="wide" style="border:1px solid #2C4A78;border-radius:10px;padding:16px 18px;margin:0">
+<legend style="padding:0 6px;color:var(--muted);font-size:14px">Who is invited (gate)</legend>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 18px">{boxes}</div>
+<p class="help" style="margin:12px 0 0">Ticks set the board labels, the filters and the mailing list together. Members + Spouses, Families, Men or Women → all@ · Members → members@ · Spouses → spouses.all@ · Families or YNG → + yng@ · Key Associates and Guests have no list of their own: the email goes to the members and/or spouses they come with. Regional flights never send emails.</p>
+</fieldset>
 <p class="wide help" style="margin:0;font-size:14px">Emails currently go to: <strong class="mono">{lists_now}</strong></p>
 <label class="wide">Feedback in Experience Intelligence<select name="ei_event_id">{ei_opts}</select>
 <span class="help">Link the flight to its feedback event and the score appears on its own, with two decimals, as soon as the feedback is loaded there.</span></label>

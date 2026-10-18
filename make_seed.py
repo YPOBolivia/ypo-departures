@@ -5,11 +5,11 @@ Y = "yng@ypobolivia.com"
 
 # Audience presets: (chips, filter tags, mailing lists)
 MEMBERS_ONLY = (["MEMBERS"], ["members"], [M])
-MEM_SPOUSES = (["ALL"], ["members", "spouses"], [A])
+MEM_SPOUSES = (["MEMBERS", "SPOUSES"], ["members", "spouses"], [A])
 MALE = (["MEN"], ["members", "spouses"], [A])
 FEMALE = (["WOMEN"], ["members", "spouses"], [A])
 FAMILIES = (["FAMILIES"], ["members", "spouses", "families"], [A, Y])
-WITH_YNG = (["ALL", "YNG"], ["members", "spouses", "families"], [A, Y])
+WITH_YNG = (["MEMBERS", "SPOUSES", "YNG"], ["members", "spouses", "families"], [A, Y])
 
 # (start, end, name, audience label, preset, scope, city)
 EVENTS = [
