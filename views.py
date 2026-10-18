@@ -161,7 +161,7 @@ def board_page(events, role, updated_at) -> str:
         u = updated_at.astimezone(LA_PAZ)
         upd = f"Updated {u.day:02d} {u.strftime('%b').upper()} {u.year} · {u:%H:%M}"
     filters = [("all", "All flights"), ("members", "Members"), ("spouses", "Spouses"),
-               ("families", "Families & YNG"), ("guests", "Guests & KA"), ("chapter", "Chapter"), ("regional", "Regional")]
+               ("families", "Families"), ("yng", "YNG"), ("key-associates", "Key Associates"), ("guests", "Guests"), ("chapter", "Chapter"), ("regional", "Regional")]
     pills = "".join(f'<button type="button" class="pill" data-filter="{k}" aria-pressed="{"true" if k == "all" else "false"}">{e(v)}</button>'
                     for k, v in filters)
     stages = "".join(

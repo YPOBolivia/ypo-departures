@@ -116,9 +116,13 @@ def derive(chips, scope="chapter"):
         tags.append("members")
     if spouses:
         tags.append("spouses")
-    if young:
+    if "FAMILIES" in c:
         tags.append("families")
-    if c & {"KEY ASSOCIATES", "GUESTS"}:
+    if young:  # Families include YNG, so they show under YNG too
+        tags.append("yng")
+    if "KEY ASSOCIATES" in c:
+        tags.append("key-associates")
+    if "GUESTS" in c:
         tags.append("guests")
     lists = []
     if scope == "chapter":
