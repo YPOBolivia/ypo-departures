@@ -501,7 +501,7 @@ def admin_event_page(ev, flash="", error="", ei_events=None) -> str:
 <fieldset class="wide" style="border:1px solid #2C4A78;border-radius:10px;padding:16px 18px;margin:0">
 <legend style="padding:0 6px;color:var(--muted);font-size:14px">Who is invited (gate)</legend>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 18px">{boxes}</div>
-<p class="help" style="margin:12px 0 0">Ticks set the board labels, the filters and the mailing list together. Members + Spouses, Families, Men or Women → all@ · Members → members@ · Spouses → spouses.all@ · Families or YNG → + yng@ · Key Associates and Guests have no list of their own: the email goes to the members and/or spouses they come with. Regional flights never send emails.</p>
+<p class="help" style="margin:12px 0 0">Ticks set the board labels, the filters and the mailing list together. Members + Spouses or Families → all@ · Men → men@ · Women → women@ · Members → members@ · Spouses → spouses.all@ · Families or YNG → + yng@ · Key Associates and Guests have no list of their own: the email goes to the members and/or spouses they come with. Regional flights never send emails.</p>
 </fieldset>
 <p class="wide help" style="margin:0;font-size:14px">Emails currently go to: <strong class="mono">{lists_now}</strong></p>
 <label class="wide">Feedback in Experience Intelligence<select name="ei_event_id">{ei_opts}</select>

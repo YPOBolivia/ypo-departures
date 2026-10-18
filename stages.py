@@ -41,12 +41,14 @@ CHIP_COLORS = {
 }
 CHIP_DEFAULT = "#B9C4D6"
 
-# The four chapter mailing lists.
+# The chapter mailing lists.
 LISTS = {
     "members": "members@ypobolivia.com",
     "spouses": "spouses.all@ypobolivia.com",
     "all": "all@ypobolivia.com",
     "yng": "yng@ypobolivia.com",
+    "men": "men@ypobolivia.com",
+    "women": "women@ypobolivia.com",
 }
 
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -120,10 +122,13 @@ def derive(chips, scope="chapter"):
         tags.append("guests")
     lists = []
     if scope == "chapter":
-        # Men/women-only gatherings go to all@ and the email names the audience.
-        both = (c & {"FAMILIES", "MEN", "WOMEN"}) or ({"MEMBERS", "SPOUSES"} <= c)
+        both = ("FAMILIES" in c) or ({"MEMBERS", "SPOUSES"} <= c) or ({"MEN", "WOMEN"} <= c)
         if both:
             lists.append(LISTS["all"])
+        elif "MEN" in c:
+            lists.append(LISTS["men"])
+        elif "WOMEN" in c:
+            lists.append(LISTS["women"])
         elif "MEMBERS" in c:
             lists.append(LISTS["members"])
         elif "SPOUSES" in c:
